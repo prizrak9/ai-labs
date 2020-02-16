@@ -2,8 +2,35 @@
 
 open Graphs
 
-//let graph = Graph.GraphBuilder()
+let printgraph (graph:Graph) =
+    let out = 
+        let printConn = 
+            function 
+            | (Some id,_,sinkId,weight) -> sprintf "%i|%i:%g" sinkId id weight 
+            | (_,_,sinkId,weight) -> sprintf "%i:%g" sinkId weight
 
+        let printNode (node, adj) = sprintf "%i: %s" node (adj |> List.map printConn |> String.concat "; ")
+
+        graph 
+        |> List.map printNode
+        |> String.concat "\n"
+
+    printfn "graph:\n%s\n" out
+  
+let printPath a b path =
+    match path with
+    | Some path ->
+        printfn "first path from %i to %i: %A" a b path
+    | _ ->
+        printfn "first path from %i to %i: not found" a b
+
+let printDetailedPath a b path =
+    match path with
+    | Some path ->
+        let formatForOutput = path |> fst |> List.map (function (sinkId,Some connId) -> sprintf "%i:%i" sinkId connId | (sinkId,_) -> sprintf "%i" sinkId) |> String.concat "; "
+        printfn "longest path from %i to %i: ([%s], %g)" a b formatForOutput (snd path)
+    | _ ->
+        printfn "longest path from %i to %i: not found" a b
 
 [<EntryPoint>]
 let main argv =
@@ -37,15 +64,15 @@ let main argv =
         tux 1 7
     }
 
-    printfn "graph: %A" graph
+    printgraph graph
 
+    let a = 1
+    let b = 1
 
-    let path = PathFinding.DepthFirstSearch.findFirstNonIntersectingPath graph 12 12
-    printfn "first path: %A" path
+    let path = PathFinding.DepthFirstSearch.findFirstNonIntersectingPath graph a b
+    printPath a b path
 
-    let path = PathFinding.DepthFirstSearch.findLongestNonIntersectingPath graph 1 1
-    printfn "longest path: %A" path
+    let path = PathFinding.DepthFirstSearch.findLongestNonIntersectingPath graph a b
+    printDetailedPath a b path
 
-    
-    printfn "Hello World from F#!"
     0 // return an integer exit code

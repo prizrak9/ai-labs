@@ -78,7 +78,7 @@ module DepthFirstSearch =
 
     // Mixed recursion
     // Fold is tail-recursed but inFunc is head-recursed
-    let findLongestNonIntersectingPath graph (start:SinkId) (finish:SinkId) : Path option =
+    let findLongestNonIntersectingPath graph (start:SinkId) (finish:SinkId) : DetailedPath option =
         let rec inFunc (state:State) ((id,_,sink,weight):Connection) : State =
             let ((_,longestLength) as longestPath), ((lastRoute,lastLength) as lastPath) = state
 
@@ -111,4 +111,4 @@ module DepthFirstSearch =
 
         match List.fold inFunc (([],0.),([],0.)) (Graph.adjacent graph start) with
         | ([],_),_ -> None
-        | (longestRoute,longestLength),_ -> Some (longestRoute |> List.map fst |> List.rev, longestLength)
+        | (longestRoute,longestLength),_ -> Some (longestRoute |> List.rev, longestLength)
