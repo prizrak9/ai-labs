@@ -9,7 +9,7 @@ module DepthFirstSearch =
     let findFirstPath graph (start:SinkId) (finish:SinkId) : Path option =
         let rec inFunc (connections:Adjacency) : Path option =
             match connections with
-            | (_,sink,weight)::t ->
+            | (_,_,sink,weight)::t ->
                 if sink = finish
                 then Some ([sink], weight) 
                 else
@@ -40,48 +40,54 @@ module DepthFirstSearch =
         | Continue of 'a
         | Finish of 'a
   
+    type private DetailedPath = (SinkId * ConnectionId) list * Length
+
     let findFirstNonIntersectingPath graph (start:SinkId) (finish:SinkId) : Path option =
         let succeed _ = true
         let cont = function Continue _ -> true | _ -> false
 
-        let rec inFunc (Continue ((lastRoute,lastLength) as lastPath):Command<Path>) ((_,sink,weight):Connection) : Command<Path>  =
-            if List.contains sink lastRoute
+        let rec inFunc (Continue (lastRoute,lastLength) as lastCommand:Command<DetailedPath>) ((id,_,sink,weight):Connection) : Command<DetailedPath>  =
+            if List.contains sink (List.map fst lastRoute)
             // The snake bit itself. Return
-            then Continue lastPath
+            then lastCommand
             else
-                let currentPath = sink::lastRoute, lastLength + weight
+                let currentPath = (sink,id)::lastRoute, lastLength + weight
                 if sink = finish
                 then
                     // This check is only required for cyclic graphs.
                     // If the start and finish are the same node
                     // then we need to prevent using the same connection
                     // to return right after visiting the first node
-                    if List.length lastRoute = 1 && start = finish
-                    then Continue lastPath
+                    if List.length lastRoute = 1 && (List.head lastRoute |> snd) = id
+                    then lastCommand
                     else Finish currentPath
                 // Dive
-                else List.foldCond inFunc succeed cont (Continue currentPath) (Graph.adjacent graph sink)
+                else
+                    let state = (Continue currentPath)
+                    match List.foldCond inFunc succeed cont state (Graph.adjacent graph sink) with
+                    | Continue _ -> lastCommand
+                    | a -> a
 
         match List.foldCond inFunc succeed cont (Continue ([],0.)) (Graph.adjacent graph start) with
         | Continue _ -> None
-        | Finish (route, length)-> Some (List.rev route, length)
+        | Finish (route, length)-> Some (route |> List.map fst |> List.rev, length)
 
-    type private LongestPath = Path
-    type private CurrentPath = Path
+    type private LongestPath = DetailedPath
+    type private CurrentPath = DetailedPath
     type private State = LongestPath * CurrentPath
 
     // Mixed recursion
     // Fold is tail-recursed but inFunc is head-recursed
     let findLongestNonIntersectingPath graph (start:SinkId) (finish:SinkId) : Path option =
-        let rec inFunc (state:State) ((_,sink,weight):Connection) : State =
+        let rec inFunc (state:State) ((id,_,sink,weight):Connection) : State =
             let ((_,longestLength) as longestPath), ((lastRoute,lastLength) as lastPath) = state
 
             // This check is only required for cyclic graphs
-            if List.contains sink lastRoute
+            if List.contains sink (List.map fst lastRoute)
             // The snake bit itself. Return
             then longestPath, lastPath
             else
-                let (_,currentLength) as currentPath = sink::lastRoute, lastLength + weight
+                let (_,currentLength) as currentPath = (sink,id)::lastRoute, lastLength + weight
 
                 if sink = finish
                 then 
@@ -89,7 +95,7 @@ module DepthFirstSearch =
                     // If the start and finish are the same node
                     // then we need to prevent using the same connection
                     // to return right after visiting the first node
-                    if List.length lastRoute = 1 && start = finish
+                    if List.length lastRoute = 1 && (List.head lastRoute |> snd) = id
                     then longestPath, lastPath
                     else
                         if currentLength > longestLength
@@ -105,4 +111,4 @@ module DepthFirstSearch =
 
         match List.fold inFunc (([],0.),([],0.)) (Graph.adjacent graph start) with
         | ([],_),_ -> None
-        | (longestRoute,longestLength),_ -> Some ((List.rev longestRoute), longestLength)
+        | (longestRoute,longestLength),_ -> Some (longestRoute |> List.map fst |> List.rev, longestLength)

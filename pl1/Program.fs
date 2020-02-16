@@ -2,59 +2,49 @@
 
 open Graphs
 
-let graph = Graph.GraphBuilder()
+//let graph = Graph.GraphBuilder()
 
 
 [<EntryPoint>]
 let main argv =
-    //// Legacy way
-    //let graph : Graph =
-    //    [
-    //        1, [1,2,0.5]
-    //        2, [2,1,0.5]
-    //    ]
-    
-    //// Builder way
-    //let graph = GraphBuilder(){
-    //    twoWay 1 2 0.5
-    //}
+    let graph = Graph.GraphBuilder(defaultWeight = 1., allConnectionsUnique = true) {
+        t 1 2
+        t 1 10
+        t 1 11
+        t 2 3
+        t 2 4
+        t 3 5
+        t 3 6
+        t 4 5
+        t 4 9
+        t 5 6
+        t 5 13 
+        t 5 18 
+        t 6 18 
+        t 6 11 
+        t 7 8 
+        t 7 12 
+        t 7 2 
+        t 8 10 
+        t 9 14 
+        t 11 16 
+        t 13 1 
+        t 14 17 
+        t 15 16 
+        t 16 17
 
-
-    let o = 1.
-    let graph = graph {
-        twoWay 1 2 o
-        twoWay 1 7 o
-        twoWay 1 10 o
-        twoWay 1 11 o
-        twoWay 2 3 o
-        twoWay 2 4 o
-        twoWay 3 5 o
-        twoWay 3 6 o
-        twoWay 4 5 o
-        twoWay 4 9 o
-        twoWay 5 6 o
-        twoWay 5 13 o
-        twoWay 5 18 o
-        twoWay 6 18 o
-        twoWay 6 11 o
-        twoWay 7 8 o
-        twoWay 7 1 o
-        twoWay 7 12 o
-        twoWay 7 2 o
-        twoWay 8 10 o
-        twoWay 9 14 o
-        twoWay 10 20 o
-        twoWay 11 16 o
-        twoWay 13 1 o
-        twoWay 14 17 o
-        twoWay 15 16 o
-        twoWay 16 17 o
+        // Demonstrate use of one way unique connections
+        tux 1 7
     }
 
-    let path = PathFinding.DepthFirstSearch.findFirstNonIntersectingPath graph 1 1
-    //let path = PathFinding.DepthFirstSearch.findLongestNonIntersectingPath graph 1 1
-    
-    printfn "%A" path
+    printfn "graph: %A" graph
+
+
+    let path = PathFinding.DepthFirstSearch.findFirstNonIntersectingPath graph 12 12
+    printfn "first path: %A" path
+
+    let path = PathFinding.DepthFirstSearch.findLongestNonIntersectingPath graph 1 1
+    printfn "longest path: %A" path
 
     
     printfn "Hello World from F#!"
