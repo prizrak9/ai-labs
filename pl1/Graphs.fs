@@ -65,7 +65,6 @@ module Graph =
         then failwith "connection already exists"
         else modify graph source (fun x -> fst x, (id,source,sink,weight)::snd x)
 
-
     // Does not guarantee order of adjacencies
     type GraphBuilder(?defaultWeight, ?allConnectionsUnique) =
         let defaultWeight =
