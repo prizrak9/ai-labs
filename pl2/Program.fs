@@ -14,7 +14,7 @@ module List =
 
 let getNext (poles:(int * int list) list) = seq {
     for source in poles do
-        for sink in poles |> List.except [source] do
+        for sink in poles |> Seq.except [source] do
             match source, sink with
             | (i,h1::t1), (j,h2::t2) when h2 > h1->
                 yield 
@@ -28,6 +28,7 @@ let getNext (poles:(int * int list) list) = seq {
                     else (List.take j poles) @ [j,[h1]] @ (poles |> List.skip (j+1) |> List.take (i-j-1)) @ [i,t1] @ (List.skip (i+1) poles)
             | _ -> ()
 }
+
 
 type Configuration = (int*int list) list
 type Path = Configuration list
@@ -53,7 +54,7 @@ let findPathDiveFirstHead (poles : Configuration) (desiredState : Configuration)
 
 
 // Tail recursion
-let findPathDiveFirst (poles : Configuration) (desiredState : Configuration) : Path option =
+let findPathDiveFirst (startState : Configuration) (desiredState : Configuration) : Path option =
     let rec inFunc left path next : Path option =
         match left with
         | [] -> 
@@ -68,9 +69,9 @@ let findPathDiveFirst (poles : Configuration) (desiredState : Configuration) : P
                 | None -> inFunc t path next 
                 | x -> x |> next)
 
-    inFunc [poles] [] id
+    inFunc [startState] [] id
 
-let findPathBreathFirst (startState : Configuration) (desiredState : Configuration) : Path option =
+let findPathBreadthFirst (startState : Configuration) (desiredState : Configuration) : Path option =
     let rec inFunc left allPassed allDiscovered path next : Path option =
         match left with
         | [] -> 
@@ -91,6 +92,32 @@ let findPathBreathFirst (startState : Configuration) (desiredState : Configurati
     inFunc [startState] [] [startState] [] (fun _ _ c -> c)
 
 
+let findPathHeuristic (startState : Configuration) (desiredState : Configuration) g h : Path option =
+    let rec inFunc (combination : Configuration) path next : Path option =
+        if combination = desiredState
+        then Some path
+        else
+            match getNext combination |> Seq.toList with
+            | [] -> None
+            | nextCombinations ->
+                let nextCombination = nextCombinations |> List.minBy (fun a -> (h a) + (g a))
+
+                inFunc nextCombination (nextCombination :: path) next
+
+    inFunc startState [startState] id
+
+
+
+
+let printState state =
+    for (i,list) in state do
+        printfn "%-2i %A" i list
+
+let printPath =
+    function Some path ->
+        for state in path |> List.rev do
+            printState state
+            printfn ""
 
 [<EntryPoint>]
 let main argv =
@@ -137,10 +164,27 @@ let main argv =
 
 
 
-    let path1 = findPathDiveFirst initialState desiredState 
-    let path2 = findPathBreathFirst initialState desiredState 
 
-    //printfn "%A" path1
+    //let h (state : Configuration) = 
+    //    (state |> List.take (List.length state - 2) |> List.map snd |> List.concat |> List.sum) 
+    //    /
+    //    (state |> List.last |> snd |> List.sum |> (+) 1)
+
+    let rnd = System.Random()
+
+    let h (state : Configuration) = 
+        state |> List.map (fun (i,list) -> list |> List.sum |> (*) i |> float) |> List.sum |> (+) (rnd.NextDouble() / 100.) |> (/) 1.
+          
+
+    let g (state : Configuration) =
+        1.
+
+    let path1 = findPathDiveFirst initialState desiredState 
+    let path2 = findPathBreadthFirst initialState desiredState 
+    let path3 = findPathHeuristic initialState desiredState g h
+
+    //match path1 with Some s -> printPath s
+    //printPath path2
 
     printfn "Hello World from F#!"
     0 // return an integer exit code
