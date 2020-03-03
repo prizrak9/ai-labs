@@ -28,7 +28,7 @@ let getNext (poles:State) = seq {
 }
 
 
-let findPathDiveFirstHead (poles : State) (desiredState : State) : Path option =
+let findPathDiveFirstHead (startState : State) (desiredState : State) : Path option =
     let rec inFunc left path : Path option =
         match left with
         | [] -> 
@@ -41,7 +41,7 @@ let findPathDiveFirstHead (poles : State) (desiredState : State) : Path option =
             | None -> inFunc t path
             | x -> x
 
-    inFunc [poles] []
+    inFunc [startState] []
 
 let findPathDiveFirstTail (startState : State) (desiredState : State) : Path option =
     let rec inFunc (queue : Queue) (allPassed : State list) : Path option =
