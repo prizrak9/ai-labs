@@ -10,6 +10,15 @@ module List =
         then []
         else List.skip n list
 
+let printState state =
+    for (i,list) in state do
+        printfn "%-2i %A" i list
+
+let printPath =
+    function Some path ->
+        for state in path |> List.rev do
+            printState state
+            printfn ""
 
 
 let getNext (poles:(int * int list) list) = seq {
@@ -30,11 +39,11 @@ let getNext (poles:(int * int list) list) = seq {
 }
 
 
-type Configuration = (int*int list) list
-type Path = Configuration list
+type State = (int*int list) list
+type Path = State list
 
 // Head recursion
-let findPathDiveFirstHead (poles : Configuration) (desiredState : Configuration) : Path option =
+let findPathDiveFirstHead (poles : State) (desiredState : State) : Path option =
     let rec inFunc left path : Path option =
         match left with
         | [] -> 
@@ -54,7 +63,7 @@ let findPathDiveFirstHead (poles : Configuration) (desiredState : Configuration)
 
 
 // Tail recursion
-let findPathDiveFirst (startState : Configuration) (desiredState : Configuration) : Path option =
+let findPathDiveFirst (startState : State) (desiredState : State) : Path option =
     let rec inFunc left path next : Path option =
         match left with
         | [] -> 
@@ -71,29 +80,33 @@ let findPathDiveFirst (startState : Configuration) (desiredState : Configuration
 
     inFunc [startState] [] id
 
-let findPathBreadthFirst (startState : Configuration) (desiredState : Configuration) : Path option =
-    let rec inFunc left allPassed allDiscovered path next : Path option =
-        match left with
+type Configuration = State * Path
+type Queue = Configuration list
+
+let findPathBreadthFirst (startState : State) (desiredState : State) : Path option =
+    let rec inFunc (queue : Queue) (allPassed : State list) : Path option =
+        match queue with
         | [] -> 
-            None |> next allPassed allDiscovered
-        | h::_ when h = desiredState ->
-            h::path |> Some |> next allPassed allDiscovered
-        | h::t when  List.contains h allPassed ->
-            inFunc t allPassed allDiscovered path next
-        | h::t ->
-            let nextCombinations = getNext h |> Seq.except allDiscovered |> Seq.toList
+            None
+        | (state, path)::_ when state = desiredState ->
+            state::path |> Some
+        | (state, path)::t ->
+            let nextCombinations : Queue = 
+                state
+                |> getNext
+                |> Seq.except allPassed 
+                |> Seq.map (fun a -> a, state::path)
+                |> Seq.toList
+                
+            inFunc (t@nextCombinations) (state::allPassed)
 
-            inFunc t (h::allPassed) (nextCombinations @ allDiscovered) path (fun allPassed allDiscovered res ->
-                match res with
-                | None -> 
-                    inFunc nextCombinations (allPassed) allDiscovered (h::path) next 
-                | x -> x |> next allPassed allDiscovered)
-
-    inFunc [startState] [] [startState] [] (fun _ _ c -> c)
+    inFunc [startState,[]] []
 
 
-let findPathHeuristic (startState : Configuration) (desiredState : Configuration) g h : Path option =
-    let rec inFunc (combination : Configuration) path next : Path option =
+
+
+let findPathHeuristic (startState : State) (desiredState : State) g h : Path option =
+    let rec inFunc (combination : State) path next : Path option =
         if combination = desiredState
         then Some path
         else
@@ -109,32 +122,23 @@ let findPathHeuristic (startState : Configuration) (desiredState : Configuration
 
 
 
-let printState state =
-    for (i,list) in state do
-        printfn "%-2i %A" i list
-
-let printPath =
-    function Some path ->
-        for state in path |> List.rev do
-            printState state
-            printfn ""
 
 [<EntryPoint>]
 let main argv =
 
-    //let initialState = [
-    //    0,[1;2;3;4]
-    //    1,[]
-    //    2,[]
-    //    3,[]
-    //]
+    let initialState = [
+        0,[1;2;3;4]
+        1,[]
+        2,[]
+        3,[]
+    ]
 
-    //let desiredState = [
-    //    0,[]
-    //    1,[]
-    //    2,[]
-    //    3,[1;2;3;4]
-    //]
+    let desiredState = [
+        0,[]
+        1,[]
+        2,[]
+        3,[1;2;3;4]
+    ]
 
     //let initialState = [
     //       0,[1;2;3]
@@ -142,41 +146,31 @@ let main argv =
     //       2,[]
     //   ]
 
+    //let desiredStateStateState   //   State    2,[1;2;3]
+    //]
+
+    //let initialState = [
+    //       0,[1;2;3]
+    //       1,[]
+    //       2,[]
+    //       3,[]
+    //   ]
+
     //let desiredState = [
     //    0,[]
     //    1,[]
-    //    2,[1;2;3]
+    //    2,[]
+    //    3,[1;2;3]
     //]
 
-    let initialState = [
-           0,[1;2;3]
-           1,[]
-           2,[]
-           3,[]
-       ]
-
-    let desiredState = [
-        0,[]
-        1,[]
-        2,[]
-        3,[1;2;3]
-    ]
-
-
-
-
-    //let h (state : Configuration) = 
-    //    (state |> List.take (List.length state - 2) |> List.map snd |> List.concat |> List.sum) 
-    //    /
-    //    (state |> List.last |> snd |> List.sum |> (+) 1)
 
     let rnd = System.Random()
 
-    let h (state : Configuration) = 
-        state |> List.map (fun (i,list) -> list |> List.sum |> (*) i |> float) |> List.sum |> (+) (rnd.NextDouble() / 100.) |> (/) 1.
+    let h (state : State) = 
+        state |> List.map (fun (i,list) -> list |> List.sum |> (*) i |> float) |> List.sum  |> (/) 1. |> (+) (rnd.NextDouble() / 100.)
           
 
-    let g (state : Configuration) =
+    let g (state : State) =
         1.
 
     let path1 = findPathDiveFirst initialState desiredState 
