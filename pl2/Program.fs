@@ -62,23 +62,6 @@ let findPathDiveFirstTail (startState : State) (desiredState : State) : Path opt
 
     inFunc [startState,[]] []
 
-let findPathDiveFirst (startState : State) (desiredState : State) : Path option =
-    let rec inFunc left path next : Path option =
-        match left with
-        | [] -> 
-           None |> next
-        | h::_ when h = desiredState ->
-           h::path |> Some |> next
-        | h::t when List.contains h path ->
-            inFunc t path next 
-        | h::t ->
-            let nextCombinations = getNext h |> Seq.toList
-            inFunc nextCombinations (h::path) (function 
-                | None -> inFunc t path next 
-                | x -> x |> next)
-
-    inFunc [startState] [] id
-
 let findPathBreadthFirst (startState : State) (desiredState : State) : Path option =
     let rec inFunc (queue : Queue) (allPassed : State list) : Path option =
         match queue with
