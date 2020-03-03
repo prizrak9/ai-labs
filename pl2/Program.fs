@@ -2,47 +2,32 @@
 
 open System
 
-type Pole<'a> = Pole of int * list<'a>
+type Pole<'a> = int * list<'a>
 
-module List =
-    let skip n list =
-        if n > List.length list
-        then []
-        else List.skip n list
-
-let printState state =
-    for (i,list) in state do
-        printfn "%-2i %A" i list
-
-let printPath =
-    function Some path ->
-        for state in path |> List.rev do
-            printState state
-            printfn ""
+type Pole = Pole<int>
+type State = Pole list
+type Path = State list
+type Configuration = State * Path
+type Queue = Configuration list
 
 
-let getNext (poles:(int * int list) list) = seq {
+let getNext (poles:State) = seq {
+    let get i j list t =
+        if i < j
+        then (List.take i poles) @ [i,t] @ (poles |> List.skip (i+1) |> List.take (j-i-1)) @ [j,list] @ (List.skip (j+1) poles)
+        else (List.take j poles) @ [j,list] @ (poles |> List.skip (j+1) |> List.take (i-j-1)) @ [i,t] @ (List.skip (i+1) poles)
+
     for source in poles do
         for sink in poles |> Seq.except [source] do
             match source, sink with
-            | (i,h1::t1), (j,h2::t2) when h2 > h1->
-                yield 
-                    if i < j
-                    then (List.take i poles) @ [i,t1] @ (poles |> List.skip (i+1) |> List.take (j-i-1)) @ [j,h1::h2::t2] @ (List.skip (j+1) poles)
-                    else (List.take j poles) @ [j,h1::h2::t2] @ (poles |> List.skip (j+1) |> List.take (i-j-1)) @ [i,t1] @ (List.skip (i+1) poles)
+            | (i,h1::t1), (j,h2::t2) when h2 > h1-> 
+                yield get i j (h1::h2::t2) t1
             | (i,h1::t1), (j,[]) ->
-                yield
-                    if i < j
-                    then (List.take i poles) @ [i,t1] @ (poles |> List.skip (i+1) |> List.take (j-i-1)) @ [j,[h1]] @ (List.skip (j+1) poles)
-                    else (List.take j poles) @ [j,[h1]] @ (poles |> List.skip (j+1) |> List.take (i-j-1)) @ [i,t1] @ (List.skip (i+1) poles)
+                yield get i j [h1] t1
             | _ -> ()
 }
 
 
-type State = (int*int list) list
-type Path = State list
-
-// Head recursion
 let findPathDiveFirstHead (poles : State) (desiredState : State) : Path option =
     let rec inFunc left path : Path option =
         match left with
@@ -50,19 +35,33 @@ let findPathDiveFirstHead (poles : State) (desiredState : State) : Path option =
             None
         | h::_ when h = desiredState ->
            h::path |> Some
-        | h::t when List.contains h path ->
-            inFunc t path 
         | h::t ->
-            let nextCombinations = getNext h |> Seq.toList
+            let nextCombinations = getNext h |> Seq.except path |> Seq.toList
             match inFunc nextCombinations (h::path) with
             | None -> inFunc t path
             | x -> x
 
     inFunc [poles] []
 
+let findPathDiveFirstTail (startState : State) (desiredState : State) : Path option =
+    let rec inFunc (queue : Queue) (allPassed : State list) : Path option =
+        match queue with
+        | [] -> 
+            None
+        | (state, path)::_ when state = desiredState ->
+            state::path |> Some
+        | (state, path)::t ->
+            let nextCombinations : Queue = 
+                state
+                |> getNext
+                |> List.ofSeq
+                |> List.except allPassed 
+                |> List.map (fun a -> a, state::path)
+                
+            inFunc (nextCombinations@t) (state::allPassed)
 
+    inFunc [startState,[]] []
 
-// Tail recursion
 let findPathDiveFirst (startState : State) (desiredState : State) : Path option =
     let rec inFunc left path next : Path option =
         match left with
@@ -80,9 +79,6 @@ let findPathDiveFirst (startState : State) (desiredState : State) : Path option 
 
     inFunc [startState] [] id
 
-type Configuration = State * Path
-type Queue = Configuration list
-
 let findPathBreadthFirst (startState : State) (desiredState : State) : Path option =
     let rec inFunc (queue : Queue) (allPassed : State list) : Path option =
         match queue with
@@ -94,34 +90,54 @@ let findPathBreadthFirst (startState : State) (desiredState : State) : Path opti
             let nextCombinations : Queue = 
                 state
                 |> getNext
-                |> Seq.except allPassed 
-                |> Seq.map (fun a -> a, state::path)
-                |> Seq.toList
+                |> List.ofSeq
+                |> List.except allPassed 
+                |> List.map (fun a -> a, state::path)
                 
             inFunc (t@nextCombinations) (state::allPassed)
+
+    inFunc [startState,[]] []
+
+let findPathHeuristic (startState : State) (desiredState : State) : Path option =
+    let rec inFunc (queue : Queue) (allPassed : State list) : Path option =
+        match queue with
+        | [] -> 
+            None
+        | (state, path)::_ when state = desiredState ->
+            state::path |> Some
+        | (state, path)::t ->
+            let g state =
+                path |> Seq.filter ((=) state) |> Seq.length |> float 
+
+            let h (state : State) = 
+                state |> List.map (fun (i,list) -> list |> List.sum |> (*) i |> float) |> List.sum  |> (/) 1.
+
+            let nextCombinations : Queue = 
+                state
+                |> getNext
+                |> List.ofSeq
+                |> List.except allPassed 
+                |> List.map (fun a -> a, state::path)
+                |> (@) t
+                |> List.sortBy (fun (a,_) -> (h a) + (g a))
+                
+            inFunc nextCombinations (state::allPassed)
 
     inFunc [startState,[]] []
 
 
 
 
-let findPathHeuristic (startState : State) (desiredState : State) g h : Path option =
-    let rec inFunc (combination : State) path next : Path option =
-        if combination = desiredState
-        then Some path
-        else
-            match getNext combination |> Seq.toList with
-            | [] -> None
-            | nextCombinations ->
-                let nextCombination = nextCombinations |> List.minBy (fun a -> (h a) + (g a))
+let printPath =
+    function Some path ->
+        for state in path |> List.rev do
+            for (i,list) in state do
+                printfn "%-2i %A" i list
+            printfn ""
 
-                inFunc nextCombination (nextCombination :: path) next
-
-    inFunc startState [startState] id
-
-
-
-
+let printLength name =
+    function Some path ->
+        printfn "%s path length: %i" name (List.length path)
 
 [<EntryPoint>]
 let main argv =
@@ -140,13 +156,17 @@ let main argv =
         3,[1;2;3;4]
     ]
 
-    //let initialState = [
-    //       0,[1;2;3]
-    //       1,[]
-    //       2,[]
-    //   ]
 
-    //let desiredStateStateState   //   State    2,[1;2;3]
+    //let initialState = [
+    //    0,[1;2;3;4;5]
+    //    1,[]
+    //    2,[]
+    //]
+
+    //let desiredState = [
+    //    0,[]
+    //    1,[]
+    //    2,[1;2;3;4;5]
     //]
 
     //let initialState = [
@@ -164,21 +184,15 @@ let main argv =
     //]
 
 
-    let rnd = System.Random()
+    //let path1 = findPathDiveFirstHead initialState desiredState 
+    let path2 = findPathDiveFirstTail initialState desiredState 
+    let path3 = findPathBreadthFirst initialState desiredState 
+    let path4 = findPathHeuristic initialState desiredState
 
-    let h (state : State) = 
-        state |> List.map (fun (i,list) -> list |> List.sum |> (*) i |> float) |> List.sum  |> (/) 1. |> (+) (rnd.NextDouble() / 100.)
-          
+    printLength "findPathDiveFirstTail" path2
+    printLength "findPathBreadthFirst" path3
+    printLength "findPathHeuristic" path4
 
-    let g (state : State) =
-        1.
+    //printPath path4
 
-    let path1 = findPathDiveFirst initialState desiredState 
-    let path2 = findPathBreadthFirst initialState desiredState 
-    let path3 = findPathHeuristic initialState desiredState g h
-
-    //match path1 with Some s -> printPath s
-    //printPath path2
-
-    printfn "Hello World from F#!"
     0 // return an integer exit code
